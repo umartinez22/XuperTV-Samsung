@@ -54,6 +54,12 @@ function contentType(file) {
   return "application/octet-stream";
 }
 
+function usableManifest(manifest) {
+  return /<MPD(?:\s|>)/i.test(manifest) &&
+    /<Representation(?:\s|>)/i.test(manifest) &&
+    /<SegmentTemplate(?:\s|>)/i.test(manifest);
+}
+
 function serve(req, res) {
   var cors = {
     "Access-Control-Allow-Origin": "*",
@@ -76,6 +82,28 @@ function serve(req, res) {
     return res.end("not found");
   }
   var file = path.join(session.dir, name);
+  if (/\.mpd$/i.test(name)) {
+    var manifest;
+    try { manifest = fs.readFileSync(file, "utf8"); } catch (e) {
+      if (e.code !== "ENOENT") log("no se pudo leer el manifiesto DASH:", e.message);
+    }
+    if (usableManifest(manifest || "")) {
+      session.manifest = manifest;
+    } else {
+      manifest = session.manifest;
+    }
+    if (!manifest) {
+      res.writeHead(503, Object.assign({ "Retry-After": "1" }, cors));
+      return res.end("manifest not ready");
+    }
+    keepAlive(session);
+    res.writeHead(200, Object.assign({
+      "Content-Type": contentType(name),
+      "Content-Length": Buffer.byteLength(manifest),
+      "Cache-Control": "no-cache"
+    }, cors));
+    return req.method === "HEAD" ? res.end() : res.end(manifest);
+  }
   var stat;
   try { stat = fs.statSync(file); } catch (e) {
     res.writeHead(404, cors);
@@ -170,7 +198,7 @@ function register(stream, options, callback) {
     } catch (mkdirErr) {
       return callback(new Error("no se pudo crear el directorio DASH: " + mkdirErr.message));
     }
-    var session = sessions[id] = { id: id, dir: dir, ff: null, timer: null };
+    var session = sessions[id] = { id: id, dir: dir, ff: null, timer: null, manifest: null };
     keepAlive(session);
     var output = path.join(dir, "manifest.mpd");
     var ff;
@@ -195,7 +223,9 @@ function register(stream, options, callback) {
     function manifestReady() {
       if (finished) return;
       try {
-        if (!fs.statSync(output).isFile()) return;
+        var manifest = fs.readFileSync(output, "utf8");
+        if (!usableManifest(manifest)) return;
+        session.manifest = manifest;
       } catch (e) {
         return;
       }

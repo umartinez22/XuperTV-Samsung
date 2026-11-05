@@ -20,6 +20,54 @@ function log() {
   console.log.apply(console, ["[dash]"].concat(Array.prototype.slice.call(arguments)));
 }
 
+function processIsRunning(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code !== "ESRCH";
+  }
+}
+
+function cleanupDirectory(dir) {
+  try {
+    fs.readdirSync(dir).forEach(function (name) {
+      try { fs.unlinkSync(path.join(dir, name)); } catch (err) {
+        if (err.code !== "ENOENT") log("no se pudo borrar", name + ":", err.message);
+      }
+    });
+    fs.rmdirSync(dir);
+  } catch (err) {
+    if (err.code !== "ENOENT") log("no se pudo borrar el directorio DASH:", err.message);
+  }
+}
+
+function cleanupOrphanedDirectories() {
+  var tempDir = os.tmpdir();
+  try {
+    fs.readdirSync(tempDir).forEach(function (name) {
+      if (!/^xuper-dash-/.test(name)) return;
+      var dir = path.join(tempDir, name);
+      try {
+        if (!fs.lstatSync(dir).isDirectory()) return;
+        var owner;
+        try {
+          owner = fs.readFileSync(path.join(dir, ".owner"), "utf8").trim();
+        } catch (err) {
+          if (err.code !== "ENOENT") throw err;
+        }
+        var ownerPid = Number(owner);
+        if (owner && Number.isSafeInteger(ownerPid) && ownerPid > 0 && processIsRunning(ownerPid)) return;
+        cleanupDirectory(dir);
+      } catch (err) {
+        if (err.code !== "ENOENT") log("no se pudo revisar el directorio DASH:", err.message);
+      }
+    });
+  } catch (err) {
+    log("no se pudieron buscar directorios DASH abandonados:", err.message);
+  }
+}
+
 function cleanup(session) {
   if (session.timer) clearTimeout(session.timer);
   if (session.ff) {
@@ -28,17 +76,16 @@ function cleanup(session) {
     }
     session.ff = null;
   }
-  try {
-    fs.readdirSync(session.dir).forEach(function (name) {
-      try { fs.unlinkSync(path.join(session.dir, name)); } catch (err) {
-        if (err.code !== "ENOENT") log("no se pudo borrar", name + ":", err.message);
-      }
-    });
-    fs.rmdirSync(session.dir);
-  } catch (err) {
-    if (err.code !== "ENOENT") log("no se pudo borrar el directorio DASH:", err.message);
-  }
+  cleanupDirectory(session.dir);
   delete sessions[session.id];
+}
+
+cleanupOrphanedDirectories();
+
+function cleanupAll() {
+  Object.keys(sessions).forEach(function (id) {
+    cleanup(sessions[id]);
+  });
 }
 
 function keepAlive(session) {
@@ -198,6 +245,12 @@ function register(stream, options, callback) {
     } catch (mkdirErr) {
       return callback(new Error("no se pudo crear el directorio DASH: " + mkdirErr.message));
     }
+    try {
+      fs.writeFileSync(path.join(dir, ".owner"), String(process.pid), { flag: "wx" });
+    } catch (ownerErr) {
+      cleanupDirectory(dir);
+      return callback(new Error("no se pudo registrar el propietario del directorio DASH: " + ownerErr.message));
+    }
     var session = sessions[id] = { id: id, dir: dir, ff: null, timer: null, manifest: null };
     keepAlive(session);
     var output = path.join(dir, "manifest.mpd");
@@ -272,4 +325,9 @@ function register(stream, options, callback) {
   });
 }
 
-module.exports = { register: register, port: function () { return PORT; }, path: function () { return FFMPEG; } };
+module.exports = {
+  register: register,
+  cleanupAll: cleanupAll,
+  port: function () { return PORT; },
+  path: function () { return FFMPEG; }
+};

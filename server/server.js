@@ -35,6 +35,7 @@ var magis = require("./magis");
 var proxy = require("./proxy");
 var dash = require("./ffmpeg-dash");
 Service.last.register("resolveDash", function (request) {
+  dash.cleanupAll();
   var payload = request.payload || {};
   magis.resolve(payload.contentId, payload.seriesContentId, { trackIndex: payload.trackIndex }, function (err, stream) {
     if (err) {

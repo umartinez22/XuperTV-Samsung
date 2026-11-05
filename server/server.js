@@ -31,6 +31,42 @@ Module._resolveFilename = function (request) {
 
 var Service = require("webos-service");
 require("./index.js");
+var magis = require("./magis");
+var proxy = require("./proxy");
+var dash = require("./ffmpeg-dash");
+Service.last.register("resolveDash", function (request) {
+  var payload = request.payload || {};
+  magis.resolve(payload.contentId, payload.seriesContentId, { trackIndex: payload.trackIndex }, function (err, stream) {
+    if (err) {
+      request.respond({ returnValue: false, errorText: err.message || String(err), errorCode: err.portalCode || 1 });
+      return;
+    }
+    proxy.start(function (proxyErr) {
+      if (proxyErr) {
+        request.respond({ returnValue: false, errorText: proxyErr.message || String(proxyErr), errorCode: 1 });
+        return;
+      }
+      dash.register(stream, { audio: payload.audioTrack }, function (dashErr, manifestUrl) {
+        if (dashErr) {
+          request.respond({ returnValue: false, errorText: dashErr.message || String(dashErr), errorCode: 1 });
+          return;
+        }
+        stream.url = manifestUrl;
+        stream.mime = "application/dash+xml";
+        stream.proxyPath = manifestUrl;
+        stream.isDash = true;
+        stream.isHls = false;
+        if (stream.subtitles && stream.subtitles.length) {
+          stream.subtitles = stream.subtitles.map(function (subtitle) {
+            return { lang: subtitle.lang, format: subtitle.format, url: proxy.addSubtitle(subtitle.url) };
+          });
+        }
+        stream.returnValue = true;
+        request.respond(stream);
+      });
+    });
+  });
+});
 Service.listen(PORT, "0.0.0.0", function () {
   console.log("[xuper-server] escuchando en http://" + process.env.XUPER_PUBLIC_HOST + ":" + PORT);
   console.log("[xuper-server] ffmpeg: " + (process.env.FFMPEG_PATH || (process.platform === "win32" ? "ffmpeg.exe (junto al servidor)" : "/usr/bin/ffmpeg")));

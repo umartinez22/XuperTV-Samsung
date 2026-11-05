@@ -21,7 +21,7 @@ sudo apt install nodejs ffmpeg
 curl http://IP_DEL_PC:8910/ping  # debe responder returnValue:true
 ```
 
-Tiene que quedar encendido mientras uses la app. Puertos: 8910 (API), 8787 (relay) y uno dinámico del proxy; si hay firewall, ábrelos.
+Tiene que quedar encendido mientras uses la app. Puertos: 8910 (API), 8787 (relay), 8788 (DASH) y uno dinámico del proxy; si hay firewall, ábrelos. El endpoint `POST /resolveDash` acepta `contentId` (y opcionalmente `seriesContentId`, `trackIndex` y `audioTrack`), ejecuta FFmpeg y genera MPEG-DASH; devuelve la URL del manifiesto en `url` y `dashUrl`. Puedes cambiar el puerto DASH con `XUPER_DASH_PORT`.
 
 ## 2. App en la TV
 

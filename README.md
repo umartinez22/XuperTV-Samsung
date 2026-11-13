@@ -23,6 +23,18 @@ curl http://IP_DEL_PC:8910/ping  # debe responder returnValue:true
 
 Tiene que quedar encendido mientras uses la app. Puertos: 8910 (API), 8787 (relay), 8788 (DASH) y uno dinámico del proxy; si hay firewall, ábrelos. El endpoint `POST /resolveDash` acepta `contentId` (y opcionalmente `seriesContentId`, `trackIndex` y `audioTrack`), ejecuta FFmpeg y genera MPEG-DASH; devuelve la URL del manifiesto en `url` y `dashUrl`. Puedes cambiar el puerto DASH con `XUPER_DASH_PORT`.
 
+### Ejecutar con PM2
+
+Instala PM2 (`npm install -g pm2`) y, desde la raíz del proyecto, inicia el servidor:
+
+```bash
+pm2 start ecosystem.config.js
+pm2 save
+pm2 logs xupertv-server
+```
+
+La configuración usa el puerto 8910 por defecto; puedes cambiarlo con `PORT=9000 pm2 start ecosystem.config.js`. Si FFmpeg no está en `/usr/bin/ffmpeg`, define su ruta al iniciar, por ejemplo `FFMPEG_PATH=/opt/homebrew/bin/ffmpeg pm2 start ecosystem.config.js`.
+
 ## 2. App en la TV
 
 1. `./configurar.sh IP_DEL_PC` (escribe la dirección del servidor en `tizen/config/api.js`).

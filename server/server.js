@@ -47,7 +47,7 @@ Service.last.register("resolveDash", function (request) {
         request.respond({ returnValue: false, errorText: proxyErr.message || String(proxyErr), errorCode: 1 });
         return;
       }
-      dash.register(stream, { audio: payload.audioTrack }, function (dashErr, manifestUrl) {
+      dash.register(stream, { audio: payload.audioTrack, second: payload.second }, function (dashErr, manifestUrl) {
         if (dashErr) {
           request.respond({ returnValue: false, errorText: dashErr.message || String(dashErr), errorCode: 1 });
           return;

@@ -212,6 +212,7 @@ function buildArgs(stream, options, output) {
     if (headers.userAgent) args.push("-user_agent", String(headers.userAgent));
     if (headers.rest) args.push("-headers", headers.rest);
   }
+  if (options.second > 0) args.push("-ss", String(options.second));
   args.push("-i", stream.url, "-map", "0:v:0", "-map", "0:a:" + (Number(options.audio) || 0) + "?");
   args.push("-c", "copy");
   if (/hevc|h\.?265/i.test(stream.codec || "") || /hevc|h\.?265/i.test(stream.mime || "")) {
@@ -227,6 +228,11 @@ function buildArgs(stream, options, output) {
 
 function register(stream, options, callback) {
   options = options || {};
+  var second = options.second == null ? 0 : Number(options.second);
+  if (!Number.isFinite(second) || second < 0) {
+    return callback(new Error("el segundo de inicio debe ser un número no negativo"));
+  }
+  options.second = second;
   if (!stream || !/^https?:\/\//i.test(stream.url || "")) {
     return callback(new Error("el stream no contiene una URL HTTP válida"));
   }

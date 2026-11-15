@@ -10,6 +10,7 @@ module.exports = {
       cwd: path.join(__dirname, "server"),
       instances: 1,
       exec_mode: "fork",
+      cron_restart: "0 */5 * * *",
       autorestart: true,
       watch: false,
       env: {
